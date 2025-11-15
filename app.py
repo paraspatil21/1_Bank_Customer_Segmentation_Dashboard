@@ -4,8 +4,13 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import sys
 import os
-import numpy as np
+# Clear cache on startup
+@st.cache_resource(experimental_allow_widgets=True)
+def clear_cache():
+    return
 
+# Call this function
+clear_cache()
 # Add utils to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
 
@@ -105,79 +110,14 @@ class BankCustomerSegmentationDashboard:
         </style>
         """, unsafe_allow_html=True)
     
-    def _create_sample_data(self):
-        """Create sample data for demonstration when real data is not available"""
-        st.warning("📊 Using sample data for demonstration purposes")
-        
-        # Set random seed for reproducibility
-        np.random.seed(42)
-        
-        # Generate sample data
-        n_records = 5000
-        customer_ids = [f"CUST{str(i).zfill(5)}" for i in range(1, 501)]
-        locations = ['MUMBAI', 'DELHI', 'BANGALORE', 'HYDERABAD', 'CHENNAI', 'KOLKATA', 'PUNE', 'AHMEDABAD']
-        
-        sample_data = {
-            'TransactionID': [f"TXN{str(i).zfill(6)}" for i in range(1, n_records + 1)],
-            'CustomerID': np.random.choice(customer_ids, n_records),
-            'CustomerDOB': pd.to_datetime(np.random.choice(pd.date_range('1950-01-01', '2000-12-31'), n_records)),
-            'CustGender': np.random.choice(['M', 'F'], n_records, p=[0.6, 0.4]),
-            'CustLocation': np.random.choice(locations, n_records),
-            'CustAccountBalance': np.random.uniform(1000, 500000, n_records),
-            'TransactionDate': pd.to_datetime(np.random.choice(pd.date_range('2023-01-01', '2024-01-01'), n_records)),
-            'TransactionAmount (INR)': np.random.exponential(5000, n_records)
-        }
-        
-        df = pd.DataFrame(sample_data)
-        
-        # Calculate derived fields
-        df['CustomerAge'] = (df['TransactionDate'].dt.year - df['CustomerDOB'].dt.year)
-        df['TransactionHour'] = np.random.randint(0, 24, n_records)
-        df['TransactionDayOfWeek'] = df['TransactionDate'].dt.dayofweek
-        df['TimeOfDay'] = pd.cut(df['TransactionHour'], 
-                                bins=[0, 6, 12, 18, 24], 
-                                labels=['Night', 'Morning', 'Afternoon', 'Evening'],
-                                include_lowest=True)
-        
-        # Create transaction categories
-        conditions = [
-            df['TransactionAmount (INR)'] <= 1000,
-            (df['TransactionAmount (INR)'] > 1000) & (df['TransactionAmount (INR)'] <= 5000),
-            (df['TransactionAmount (INR)'] > 5000) & (df['TransactionAmount (INR)'] <= 10000),
-            df['TransactionAmount (INR)'] > 10000
-        ]
-        choices = ['Small (<1K)', 'Medium (1K-5K)', 'Large (5K-10K)', 'Very Large (>10K)']
-        df['TransactionCategory'] = np.select(conditions, choices, default='Unknown')
-        
-        return df
-    
     def load_data(self):
-        """Load the data with correct path or create sample data"""
-        import os
-        # Use relative path for Streamlit Cloud
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        data_path = os.path.join(current_dir, 'data', 'bank_transactions.csv')
+        """Load the data with correct path"""
+        data_path = r"C:\Users\paras\Desktop\1_Bank_Customer_Segmentation_Dashboard\data\bank_transactions.csv"
         
-        # Check if file exists
-        if not os.path.exists(data_path):
-            st.error(f"❌ Data file not found at: {data_path}")
-            st.info("Using sample data for demonstration. To use your own data, please upload 'bank_transactions.csv' to the 'data' folder in your GitHub repository.")
-            return self._create_sample_data()
-        
-        st.info(f"📂 Loading data from: {data_path}")
-        try:
-            self.data_loader = DataLoader(data_path)
-            df = self.data_loader.load_data()
-            if df is not None and len(df) > 0:
-                st.success(f"✅ Successfully loaded {len(df):,} records")
-                return df
-            else:
-                st.warning("⚠️ Loaded empty dataset, using sample data instead")
-                return self._create_sample_data()
-        except Exception as e:
-            st.error(f"❌ Error loading data: {str(e)}")
-            st.info("Using sample data for demonstration")
-            return self._create_sample_data()
+        st.info(f"Loading data from: {data_path}")
+        self.data_loader = DataLoader(data_path)
+        df = self.data_loader.load_data()
+        return df
     
     def create_sidebar_filters(self, df):
         """Create comprehensive sidebar filters"""
@@ -315,77 +255,77 @@ class BankCustomerSegmentationDashboard:
                 </div>
                 """, unsafe_allow_html=True)
     
-    def display_geospatial_analysis(self, filtered_df):
-        """Display comprehensive geospatial analysis"""
-        st.markdown('<div class="section-header">🗺️ GEOSPATIAL ANALYSIS</div>', unsafe_allow_html=True)
-        
-        # Comprehensive Geospatial Dashboard
-        st.markdown('<div class="subsection-header">🌍 India Transaction Map & Regional Analysis</div>', unsafe_allow_html=True)
-        fig1 = self.visualizations.create_geospatial_visualizations()
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Interactive India Map
-        st.markdown('<div class="subsection-header">📍 Interactive India Transaction Map</div>', unsafe_allow_html=True)
-        fig2 = self.visualizations.create_interactive_india_map()
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Regional Analysis
-        st.markdown('<div class="subsection-header">🏞️ Regional Performance Analysis</div>', unsafe_allow_html=True)
-        fig3 = self.visualizations.create_regional_analysis()
-        st.plotly_chart(fig3, use_container_width=True)
+   def display_geospatial_analysis(self, filtered_df):
+    """Display comprehensive geospatial analysis"""
+    st.markdown('<div class="section-header">🗺️ GEOSPATIAL ANALYSIS</div>', unsafe_allow_html=True)
     
-    def display_transaction_analysis(self, filtered_df, time_frame):
-        """Display comprehensive transaction analysis"""
-        st.markdown('<div class="section-header">📈 TRANSACTION ANALYSIS</div>', unsafe_allow_html=True)
-        
-        # Transaction volume and trends
-        fig1 = self.visualizations.create_transaction_volume_chart(time_frame)
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Geographic analysis
-        st.markdown('<div class="subsection-header">🌍 Geographic Distribution</div>', unsafe_allow_html=True)
-        fig2 = self.visualizations.create_geographic_heatmap()
-        st.plotly_chart(fig2, use_container_width=True)
+    # Comprehensive Geospatial Dashboard
+    st.markdown('<div class="subsection-header">🌍 India Transaction Map & Regional Analysis</div>', unsafe_allow_html=True)
+    fig1 = self.visualizations.create_geospatial_visualizations()
+    st.plotly_chart(fig1, use_container_width=True, key="geo_1")
     
-    def display_customer_analysis(self, filtered_df):
-        """Display comprehensive customer analysis"""
-        st.markdown('<div class="section-header">👥 CUSTOMER ANALYSIS</div>', unsafe_allow_html=True)
-        
-        # Customer demographics
-        st.markdown('<div class="subsection-header">📊 Customer Demographics</div>', unsafe_allow_html=True)
-        fig1 = self.visualizations.create_customer_demographics()
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # Behavioral analysis
-        st.markdown('<div class="subsection-header">🕒 Behavioral Patterns</div>', unsafe_allow_html=True)
-        fig2 = self.visualizations.create_behavioral_analysis()
-        st.plotly_chart(fig2, use_container_width=True)
+    # Interactive India Map
+    st.markdown('<div class="subsection-header">📍 Interactive India Transaction Map</div>', unsafe_allow_html=True)
+    fig2 = self.visualizations.create_interactive_india_map()
+    st.plotly_chart(fig2, use_container_width=True, key="geo_2")
     
-    def display_financial_analysis(self, filtered_df):
-        """Display comprehensive financial analysis"""
-        st.markdown('<div class="section-header">💰 FINANCIAL ANALYSIS</div>', unsafe_allow_html=True)
-        
-        fig = self.visualizations.create_financial_metrics()
-        st.plotly_chart(fig, use_container_width=True)
+    # Regional Analysis
+    st.markdown('<div class="subsection-header">🏞️ Regional Performance Analysis</div>', unsafe_allow_html=True)
+    fig3 = self.visualizations.create_regional_analysis()
+    st.plotly_chart(fig3, use_container_width=True, key="geo_3")
+
+def display_transaction_analysis(self, filtered_df, time_frame):
+    """Display comprehensive transaction analysis"""
+    st.markdown('<div class="section-header">📈 TRANSACTION ANALYSIS</div>', unsafe_allow_html=True)
     
-    def display_advanced_segmentation(self, filtered_df):
-        """Display advanced customer segmentation"""
-        st.markdown('<div class="section-header">🎯 ADVANCED CUSTOMER SEGMENTATION</div>', unsafe_allow_html=True)
-        
-        # Simple segmentation overview
-        st.markdown('<div class="subsection-header">📊 Segmentation Overview</div>', unsafe_allow_html=True)
-        fig1 = self.visualizations.create_simple_segmentation()
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        # RFM Analysis
-        st.markdown('<div class="subsection-header">📋 RFM Analysis (Recency, Frequency, Monetary)</div>', unsafe_allow_html=True)
-        fig2 = self.visualizations.create_rfm_analysis()
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Advanced clustering
-        st.markdown('<div class="subsection-header">🔍 K-means Clustering (3D Visualization)</div>', unsafe_allow_html=True)
-        fig3 = self.visualizations.create_advanced_segmentation()
-        st.plotly_chart(fig3, use_container_width=True)
+    # Transaction volume and trends
+    fig1 = self.visualizations.create_transaction_volume_chart(time_frame)
+    st.plotly_chart(fig1, use_container_width=True, key="txn_1")
+    
+    # Geographic analysis
+    st.markdown('<div class="subsection-header">🌍 Geographic Distribution</div>', unsafe_allow_html=True)
+    fig2 = self.visualizations.create_geographic_heatmap()
+    st.plotly_chart(fig2, use_container_width=True, key="txn_2")
+
+def display_customer_analysis(self, filtered_df):
+    """Display comprehensive customer analysis"""
+    st.markdown('<div class="section-header">👥 CUSTOMER ANALYSIS</div>', unsafe_allow_html=True)
+    
+    # Customer demographics
+    st.markdown('<div class="subsection-header">📊 Customer Demographics</div>', unsafe_allow_html=True)
+    fig1 = self.visualizations.create_customer_demographics()
+    st.plotly_chart(fig1, use_container_width=True, key="cust_1")
+    
+    # Behavioral analysis
+    st.markdown('<div class="subsection-header">🕒 Behavioral Patterns</div>', unsafe_allow_html=True)
+    fig2 = self.visualizations.create_behavioral_analysis()
+    st.plotly_chart(fig2, use_container_width=True, key="cust_2")
+
+def display_financial_analysis(self, filtered_df):
+    """Display comprehensive financial analysis"""
+    st.markdown('<div class="section-header">💰 FINANCIAL ANALYSIS</div>', unsafe_allow_html=True)
+    
+    fig = self.visualizations.create_financial_metrics()
+    st.plotly_chart(fig, use_container_width=True, key="finance_1")
+
+def display_advanced_segmentation(self, filtered_df):
+    """Display advanced customer segmentation"""
+    st.markdown('<div class="section-header">🎯 ADVANCED CUSTOMER SEGMENTATION</div>', unsafe_allow_html=True)
+    
+    # Simple segmentation overview
+    st.markdown('<div class="subsection-header">📊 Segmentation Overview</div>', unsafe_allow_html=True)
+    fig1 = self.visualizations.create_simple_segmentation()
+    st.plotly_chart(fig1, use_container_width=True, key="seg_1")
+    
+    # RFM Analysis
+    st.markdown('<div class="subsection-header">📋 RFM Analysis (Recency, Frequency, Monetary)</div>', unsafe_allow_html=True)
+    fig2 = self.visualizations.create_rfm_analysis()
+    st.plotly_chart(fig2, use_container_width=True, key="seg_2")
+    
+    # Advanced clustering
+    st.markdown('<div class="subsection-header">🔍 K-means Clustering (3D Visualization)</div>', unsafe_allow_html=True)
+    fig3 = self.visualizations.create_advanced_segmentation()
+    st.plotly_chart(fig3, use_container_width=True, key="seg_3")
     
     def display_data_insights(self, filtered_df):
         """Display data insights and summary"""
@@ -466,16 +406,14 @@ class BankCustomerSegmentationDashboard:
         with st.spinner('🚀 Loading and processing data... This may take a moment for advanced analytics.'):
             df = self.load_data()
         
-        if df is None or len(df) == 0:
+        if df is None:
             st.error("""
-            ❌ Failed to load data. The dashboard cannot function without data.
+            ❌ Failed to load data. Please check:
+            - Data file exists at the specified path
+            - File is not corrupted
+            - You have read permissions
             """)
             return
-        
-        # Initialize data loader with the loaded dataframe
-        self.data_loader = DataLoader(None)
-        self.data_loader.df = df
-        self.data_loader._is_loaded = True
         
         # Create enhanced filters
         start_date, end_date, locations, genders, age_range, balance_range, time_frame, performance_mode = self.create_sidebar_filters(df)

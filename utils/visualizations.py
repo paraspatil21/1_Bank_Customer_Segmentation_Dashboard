@@ -22,6 +22,12 @@ class DashboardVisualizations:
             'background': '#0e1a2b',
             'text': '#ffffff'
         }
+        self.chart_counter = 0  # Counter for unique chart IDs
+    
+    def _get_unique_id(self):
+        """Generate unique ID for each chart to avoid duplicates"""
+        self.chart_counter += 1
+        return f"chart_{self.chart_counter}"
     
     def create_geospatial_visualizations(self):
         """Create comprehensive geospatial visualizations"""
@@ -162,7 +168,7 @@ class DashboardVisualizations:
             
             city_data.columns = ['City', 'TransactionCount', 'TotalAmount', 'AvgAmount', 'MaxAmount', 'UniqueCustomers', 'Latitude', 'Longitude']
             
-            # Create bubble map
+            # Create bubble map with unique ID
             fig = px.scatter_mapbox(
                 city_data,
                 lat="Latitude",
@@ -292,11 +298,6 @@ class DashboardVisualizations:
             
         except Exception as e:
             return self._create_empty_plot(f"Error in regional analysis: {str(e)}")
-    
-    # ... (Keep all the previous visualization methods exactly as they were)
-    # Transaction Volume Chart, Customer Demographics, Behavioral Analysis, 
-    # Financial Metrics, Advanced Segmentation, RFM Analysis, etc.
-    # ... [All previous methods remain unchanged]
     
     def create_transaction_volume_chart(self, time_frame='Daily'):
         """Create transaction volume over time chart"""
