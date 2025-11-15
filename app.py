@@ -106,7 +106,7 @@ class BankCustomerSegmentationDashboard:
     
     def load_data(self):
         """Load the data with correct path"""
-        data_path = r"C:\Users\paras\Desktop\Bank_Customer_Segmentation_Dashboard\data\bank_transactions.csv"
+        data_path = r"C:\Users\paras\Desktop\1_Bank_Customer_Segmentation_Dashboard\data\bank_transactions.csv"
         
         st.info(f"Loading data from: {data_path}")
         self.data_loader = DataLoader(data_path)
