@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import sys
 import os
+import numpy as np
 
 # Add utils to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
@@ -104,14 +105,79 @@ class BankCustomerSegmentationDashboard:
         </style>
         """, unsafe_allow_html=True)
     
-    def load_data(self):
-        """Load the data with correct path"""
-        data_path = r"C:\Users\paras\Desktop\1_Bank_Customer_Segmentation_Dashboard\data\bank_transactions.csv"
+    def _create_sample_data(self):
+        """Create sample data for demonstration when real data is not available"""
+        st.warning("📊 Using sample data for demonstration purposes")
         
-        st.info(f"Loading data from: {data_path}")
-        self.data_loader = DataLoader(data_path)
-        df = self.data_loader.load_data()
+        # Set random seed for reproducibility
+        np.random.seed(42)
+        
+        # Generate sample data
+        n_records = 5000
+        customer_ids = [f"CUST{str(i).zfill(5)}" for i in range(1, 501)]
+        locations = ['MUMBAI', 'DELHI', 'BANGALORE', 'HYDERABAD', 'CHENNAI', 'KOLKATA', 'PUNE', 'AHMEDABAD']
+        
+        sample_data = {
+            'TransactionID': [f"TXN{str(i).zfill(6)}" for i in range(1, n_records + 1)],
+            'CustomerID': np.random.choice(customer_ids, n_records),
+            'CustomerDOB': pd.to_datetime(np.random.choice(pd.date_range('1950-01-01', '2000-12-31'), n_records)),
+            'CustGender': np.random.choice(['M', 'F'], n_records, p=[0.6, 0.4]),
+            'CustLocation': np.random.choice(locations, n_records),
+            'CustAccountBalance': np.random.uniform(1000, 500000, n_records),
+            'TransactionDate': pd.to_datetime(np.random.choice(pd.date_range('2023-01-01', '2024-01-01'), n_records)),
+            'TransactionAmount (INR)': np.random.exponential(5000, n_records)
+        }
+        
+        df = pd.DataFrame(sample_data)
+        
+        # Calculate derived fields
+        df['CustomerAge'] = (df['TransactionDate'].dt.year - df['CustomerDOB'].dt.year)
+        df['TransactionHour'] = np.random.randint(0, 24, n_records)
+        df['TransactionDayOfWeek'] = df['TransactionDate'].dt.dayofweek
+        df['TimeOfDay'] = pd.cut(df['TransactionHour'], 
+                                bins=[0, 6, 12, 18, 24], 
+                                labels=['Night', 'Morning', 'Afternoon', 'Evening'],
+                                include_lowest=True)
+        
+        # Create transaction categories
+        conditions = [
+            df['TransactionAmount (INR)'] <= 1000,
+            (df['TransactionAmount (INR)'] > 1000) & (df['TransactionAmount (INR)'] <= 5000),
+            (df['TransactionAmount (INR)'] > 5000) & (df['TransactionAmount (INR)'] <= 10000),
+            df['TransactionAmount (INR)'] > 10000
+        ]
+        choices = ['Small (<1K)', 'Medium (1K-5K)', 'Large (5K-10K)', 'Very Large (>10K)']
+        df['TransactionCategory'] = np.select(conditions, choices, default='Unknown')
+        
         return df
+    
+    def load_data(self):
+        """Load the data with correct path or create sample data"""
+        import os
+        # Use relative path for Streamlit Cloud
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(current_dir, 'data', 'bank_transactions.csv')
+        
+        # Check if file exists
+        if not os.path.exists(data_path):
+            st.error(f"❌ Data file not found at: {data_path}")
+            st.info("Using sample data for demonstration. To use your own data, please upload 'bank_transactions.csv' to the 'data' folder in your GitHub repository.")
+            return self._create_sample_data()
+        
+        st.info(f"📂 Loading data from: {data_path}")
+        try:
+            self.data_loader = DataLoader(data_path)
+            df = self.data_loader.load_data()
+            if df is not None and len(df) > 0:
+                st.success(f"✅ Successfully loaded {len(df):,} records")
+                return df
+            else:
+                st.warning("⚠️ Loaded empty dataset, using sample data instead")
+                return self._create_sample_data()
+        except Exception as e:
+            st.error(f"❌ Error loading data: {str(e)}")
+            st.info("Using sample data for demonstration")
+            return self._create_sample_data()
     
     def create_sidebar_filters(self, df):
         """Create comprehensive sidebar filters"""
@@ -400,14 +466,16 @@ class BankCustomerSegmentationDashboard:
         with st.spinner('🚀 Loading and processing data... This may take a moment for advanced analytics.'):
             df = self.load_data()
         
-        if df is None:
+        if df is None or len(df) == 0:
             st.error("""
-            ❌ Failed to load data. Please check:
-            - Data file exists at the specified path
-            - File is not corrupted
-            - You have read permissions
+            ❌ Failed to load data. The dashboard cannot function without data.
             """)
             return
+        
+        # Initialize data loader with the loaded dataframe
+        self.data_loader = DataLoader(None)
+        self.data_loader.df = df
+        self.data_loader._is_loaded = True
         
         # Create enhanced filters
         start_date, end_date, locations, genders, age_range, balance_range, time_frame, performance_mode = self.create_sidebar_filters(df)
