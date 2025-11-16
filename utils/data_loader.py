@@ -3,8 +3,18 @@ import numpy as np
 from datetime import datetime
 import os
 import streamlit as st
-import geopandas as gpd
-from shapely.geometry import Point
+
+# Geospatial imports with fallback handling
+try:
+    import geopandas as gpd
+    from shapely.geometry import Point
+    GEOSPATIAL_AVAILABLE = True
+except ImportError:
+    GEOSPATIAL_AVAILABLE = False
+    gpd = None
+    Point = None
+    print("Geopandas not available - geospatial features disabled")
+
 import requests
 import json
 
@@ -132,6 +142,11 @@ class DataLoader:
     def _process_geospatial_data(self):
         """Process geospatial data for Indian cities"""
         try:
+            if not GEOSPATIAL_AVAILABLE:
+                st.warning("Geospatial features are not available in this environment")
+                self.geo_data = None
+                return
+            
             # Create a mapping of Indian cities to approximate coordinates
             indian_cities_coords = {
                 'MUMBAI': (19.0760, 72.8777),
@@ -283,5 +298,12 @@ class DataLoader:
         return self.customer_segments
     
     def get_geospatial_data(self):
-        """Get geospatial data"""
+        """Get geospatial data with availability check"""
+        if not GEOSPATIAL_AVAILABLE:
+            st.warning("Geospatial features are not available in this environment")
+            return None
         return self.geo_data
+    
+    def is_geospatial_available(self):
+        """Check if geospatial features are available"""
+        return GEOSPATIAL_AVAILABLE

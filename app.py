@@ -370,29 +370,38 @@ class BankCustomerSegmentationDashboard:
         """Display comprehensive geospatial analysis"""
         st.markdown('<div class="section-header">GEOSPATIAL ANALYSIS</div>', unsafe_allow_html=True)
         
-        # Comprehensive Geospatial Dashboard
-        st.markdown('<div class="subsection-header">India Transaction Map & Regional Analysis</div>', unsafe_allow_html=True)
-        fig1 = self.visualizations.create_geospatial_visualizations()
-        if fig1:
-            st.plotly_chart(fig1, use_container_width=True, key="geo_1")
+        # Check if geospatial features are available
+        if self.data_loader.is_geospatial_available():
+            # Show geospatial charts/maps
+            geo_data = self.data_loader.get_geospatial_data()
+            if geo_data is not None:
+                # Comprehensive Geospatial Dashboard
+                st.markdown('<div class="subsection-header">India Transaction Map & Regional Analysis</div>', unsafe_allow_html=True)
+                fig1 = self.visualizations.create_geospatial_visualizations()
+                if fig1:
+                    st.plotly_chart(fig1, use_container_width=True, key="geo_1")
+                else:
+                    st.info("Geospatial visualization data not available")
+                
+                # Interactive India Map
+                st.markdown('<div class="subsection-header">Interactive India Transaction Map</div>', unsafe_allow_html=True)
+                fig2 = self.visualizations.create_interactive_india_map()
+                if fig2:
+                    st.plotly_chart(fig2, use_container_width=True, key="geo_2")
+                else:
+                    st.info("Interactive map data not available")
+                
+                # Regional Analysis
+                st.markdown('<div class="subsection-header">Regional Performance Analysis</div>', unsafe_allow_html=True)
+                fig3 = self.visualizations.create_regional_analysis()
+                if fig3:
+                    st.plotly_chart(fig3, use_container_width=True, key="geo_3")
+                else:
+                    st.info("Regional analysis data not available")
+            else:
+                st.info("🗺️ Geospatial data is not available for the current filters")
         else:
-            st.info("Geospatial visualization data not available")
-        
-        # Interactive India Map
-        st.markdown('<div class="subsection-header">Interactive India Transaction Map</div>', unsafe_allow_html=True)
-        fig2 = self.visualizations.create_interactive_india_map()
-        if fig2:
-            st.plotly_chart(fig2, use_container_width=True, key="geo_2")
-        else:
-            st.info("Interactive map data not available")
-        
-        # Regional Analysis
-        st.markdown('<div class="subsection-header">Regional Performance Analysis</div>', unsafe_allow_html=True)
-        fig3 = self.visualizations.create_regional_analysis()
-        if fig3:
-            st.plotly_chart(fig3, use_container_width=True, key="geo_3")
-        else:
-            st.info("Regional analysis data not available")
+            st.info("🗺️ Geospatial analysis is not available in the current environment")
     
     def display_transaction_analysis(self, filtered_df, time_frame):
         """Display comprehensive transaction analysis"""
