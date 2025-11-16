@@ -32,8 +32,9 @@ class DashboardVisualizations:
     def create_geospatial_visualizations(self):
         """Create comprehensive geospatial visualizations"""
         try:
+            # If no geo data, create simple location-based visualization
             if self.geo_data is None or len(self.geo_data) == 0:
-                return self._create_empty_plot("No geospatial data available")
+                return self._create_location_based_visualization()
             
             # Sample for performance
             if len(self.geo_data) > 10000:
@@ -51,14 +52,14 @@ class DashboardVisualizations:
                     'Top Cities by Transaction Volume'
                 ),
                 specs=[
-                    [{"type": "scattermapbox"}, {"type": "bar"}],
+                    [{"type": "scattergeo"}, {"type": "bar"}],
                     [{"type": "densitymapbox"}, {"type": "bar"}]
                 ],
                 vertical_spacing=0.1,
                 horizontal_spacing=0.1
             )
             
-            # 1. Scatter Map - Transaction Locations
+            # 1. Scatter Geo - Transaction Locations
             city_stats = plot_data.groupby('City').agg({
                 'TransactionID': 'count',
                 'TransactionAmount (INR)': 'mean',
@@ -67,12 +68,12 @@ class DashboardVisualizations:
             }).reset_index()
             
             fig.add_trace(
-                go.Scattermapbox(
+                go.Scattergeo(
                     lat=city_stats['Latitude'],
                     lon=city_stats['Longitude'],
                     mode='markers',
                     marker=dict(
-                        size=city_stats['TransactionID'] / city_stats['TransactionID'].max() * 50 + 10,
+                        size=city_stats['TransactionID'] / city_stats['TransactionID'].max() * 30 + 10,
                         color=city_stats['TransactionAmount (INR)'],
                         colorscale='Viridis',
                         colorbar=dict(title="Avg Amount"),
@@ -99,16 +100,15 @@ class DashboardVisualizations:
                 row=1, col=2
             )
             
-            # 3. Density Map - Customer distribution
+            # 3. Simple bar chart instead of density map for better compatibility
+            location_counts = self.data['CustLocation'].value_counts().head(10)
             fig.add_trace(
-                go.Densitymapbox(
-                    lat=plot_data['Latitude'],
-                    lon=plot_data['Longitude'],
-                    z=plot_data['TransactionAmount (INR)'],
-                    radius=20,
-                    colorscale='Hot',
-                    colorbar=dict(title="Amount Density"),
-                    name='Transaction Density'
+                go.Bar(
+                    x=location_counts.values,
+                    y=location_counts.index,
+                    orientation='h',
+                    marker_color=self.colors['secondary'],
+                    name='Location Distribution'
                 ),
                 row=2, col=1
             )
@@ -120,23 +120,27 @@ class DashboardVisualizations:
                     x=top_amount_cities['TransactionAmount (INR)'],
                     y=top_amount_cities['City'],
                     orientation='h',
-                    marker_color=self.colors['secondary'],
+                    marker_color=self.colors['accent'],
                     name='Avg Amount'
                 ),
                 row=2, col=2
             )
             
-            # Update map layout
+            # Update layout
             fig.update_layout(
-                mapbox1=dict(
-                    style="carto-positron",
+                geo1=dict(
+                    scope='asia',
+                    showland=True,
+                    landcolor='rgb(217, 217, 217)',
+                    subunitcolor='rgb(255, 255, 255)',
+                    countrycolor='rgb(255, 255, 255)',
+                    showlakes=True,
+                    lakecolor='rgb(255, 255, 255)',
+                    showsubunits=True,
+                    showcountries=True,
+                    resolution=50,
                     center=dict(lat=20.5937, lon=78.9629),  # Center of India
-                    zoom=3.5
-                ),
-                mapbox2=dict(
-                    style="carto-positron",
-                    center=dict(lat=20.5937, lon=78.9629),
-                    zoom=3.5
+                    projection_scale=4
                 ),
                 title=dict(text="Geospatial Analysis - India", x=0.5, font=dict(size=20)),
                 plot_bgcolor='rgba(0,0,0,0)',
@@ -149,13 +153,104 @@ class DashboardVisualizations:
             return fig
             
         except Exception as e:
-            return self._create_empty_plot(f"Error in geospatial visualization: {str(e)}")
+            return self._create_location_based_visualization()
+    
+    def _create_location_based_visualization(self):
+        """Create location-based visualization when geospatial data is not available"""
+        try:
+            # Aggregate data by location
+            location_stats = self.data.groupby('CustLocation').agg({
+                'TransactionID': 'count',
+                'TransactionAmount (INR)': ['sum', 'mean'],
+                'CustomerID': 'nunique'
+            }).reset_index()
+            
+            location_stats.columns = ['Location', 'TransactionCount', 'TotalAmount', 'AvgAmount', 'UniqueCustomers']
+            
+            # Create subplots
+            fig = sp.make_subplots(
+                rows=2, cols=2,
+                subplot_titles=(
+                    'Top Locations by Transaction Count',
+                    'Top Locations by Average Amount',
+                    'Transaction Amount Distribution by Location',
+                    'Customer Distribution by Location'
+                ),
+                specs=[[{"type": "bar"}, {"type": "bar"}],
+                      [{"type": "bar"}, {"type": "pie"}]]
+            )
+            
+            # Top locations by transaction count
+            top_locations_count = location_stats.nlargest(10, 'TransactionCount')
+            fig.add_trace(
+                go.Bar(
+                    x=top_locations_count['TransactionCount'],
+                    y=top_locations_count['Location'],
+                    orientation='h',
+                    marker_color=self.colors['primary'],
+                    name='Transaction Count'
+                ),
+                row=1, col=1
+            )
+            
+            # Top locations by average amount
+            top_locations_avg = location_stats.nlargest(10, 'AvgAmount')
+            fig.add_trace(
+                go.Bar(
+                    x=top_locations_avg['AvgAmount'],
+                    y=top_locations_avg['Location'],
+                    orientation='h',
+                    marker_color=self.colors['secondary'],
+                    name='Avg Amount'
+                ),
+                row=1, col=2
+            )
+            
+            # Total amount by location
+            top_locations_total = location_stats.nlargest(8, 'TotalAmount')
+            fig.add_trace(
+                go.Bar(
+                    x=top_locations_total['Location'],
+                    y=top_locations_total['TotalAmount'],
+                    marker_color=self.colors['accent'],
+                    name='Total Amount'
+                ),
+                row=2, col=1
+            )
+            
+            # Customer distribution pie chart
+            customer_dist = location_stats.nlargest(8, 'UniqueCustomers')
+            fig.add_trace(
+                go.Pie(
+                    labels=customer_dist['Location'],
+                    values=customer_dist['UniqueCustomers'],
+                    name='Customer Distribution',
+                    marker_colors=[self.colors['primary'], self.colors['secondary'], 
+                                 self.colors['accent'], self.colors['warning']]
+                ),
+                row=2, col=2
+            )
+            
+            fig.update_layout(
+                title=dict(text="Location-Based Analysis", x=0.5, font=dict(size=20)),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color=self.colors['text']),
+                height=700,
+                showlegend=False
+            )
+            
+            return fig
+            
+        except Exception as e:
+            return self._create_empty_plot(f"Error in location visualization: {str(e)}")
     
     def create_interactive_india_map(self):
         """Create an interactive India map with transaction data"""
         try:
+            # If no geo data, return location-based alternative
             if self.geo_data is None or len(self.geo_data) == 0:
-                return self._create_empty_plot("No geospatial data available")
+                return self._create_location_heatmap()
             
             # Aggregate data by city
             city_data = self.geo_data.groupby('City').agg({
@@ -168,8 +263,8 @@ class DashboardVisualizations:
             
             city_data.columns = ['City', 'TransactionCount', 'TotalAmount', 'AvgAmount', 'MaxAmount', 'UniqueCustomers', 'Latitude', 'Longitude']
             
-            # Create bubble map with unique ID
-            fig = px.scatter_mapbox(
+            # Create scatter geo plot
+            fig = px.scatter_geo(
                 city_data,
                 lat="Latitude",
                 lon="Longitude",
@@ -185,17 +280,58 @@ class DashboardVisualizations:
                     'Longitude': False
                 },
                 color_continuous_scale="Viridis",
-                size_max=50,
-                zoom=3.5,
-                height=600,
+                size_max=30,
+                scope='asia',
                 title="Interactive India Transaction Map"
             )
             
             fig.update_layout(
-                mapbox_style="carto-positron",
-                mapbox=dict(
-                    center=dict(lat=20.5937, lon=78.9629)
+                geo=dict(
+                    scope='asia',
+                    showland=True,
+                    landcolor='rgb(217, 217, 217)',
+                    subunitcolor='rgb(255, 255, 255)',
+                    countrycolor='rgb(255, 255, 255)',
+                    showlakes=True,
+                    lakecolor='rgb(255, 255, 255)',
+                    showsubunits=True,
+                    showcountries=True,
+                    resolution=50,
+                    center=dict(lat=20.5937, lon=78.9629),
+                    projection_scale=4
                 ),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color=self.colors['text']),
+                height=500
+            )
+            
+            return fig
+            
+        except Exception as e:
+            return self._create_location_heatmap()
+    
+    def _create_location_heatmap(self):
+        """Create a location heatmap alternative"""
+        try:
+            location_stats = self.data.groupby('CustLocation').agg({
+                'TransactionID': 'count',
+                'TransactionAmount (INR)': 'sum',
+                'CustomerID': 'nunique'
+            }).reset_index()
+            
+            location_stats.columns = ['Location', 'TransactionCount', 'TotalAmount', 'UniqueCustomers']
+            
+            fig = px.treemap(
+                location_stats.head(15),
+                path=['Location'],
+                values='TransactionCount',
+                color='TotalAmount',
+                color_continuous_scale='Viridis',
+                title='Location Transaction Heatmap'
+            )
+            
+            fig.update_layout(
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(color=self.colors['text'])
@@ -204,31 +340,29 @@ class DashboardVisualizations:
             return fig
             
         except Exception as e:
-            return self._create_empty_plot(f"Error in interactive map: {str(e)}")
+            return self._create_empty_plot(f"Error in location heatmap: {str(e)}")
     
     def create_regional_analysis(self):
         """Create regional analysis charts"""
         try:
-            if self.geo_data is None:
-                return self._create_empty_plot("No geospatial data available")
+            # Use location data for regional analysis
+            location_data = self.data.copy()
             
-            # Define Indian regions
-            region_mapping = {
-                'NORTH': ['DELHI', 'GURGAON', 'NOIDA', 'FARIDABAD', 'GHAZIABAD', 'LUCKNOW', 'KANPUR', 'JAIPUR', 'LUDHIANA', 'AMRITSAR'],
-                'SOUTH': ['BANGALORE', 'HYDERABAD', 'CHENNAI', 'COIMBATORE', 'KOCHI', 'VIZAG', 'VIJAYAWADA', 'MYSORE', 'MADURAI'],
-                'WEST': ['MUMBAI', 'PUNE', 'AHMEDABAD', 'SURAT', 'VADODARA', 'NAGPUR', 'INDORE', 'BHOPAL', 'GOA'],
-                'EAST': ['KOLKATA', 'PATNA', 'BHUBANESWAR', 'RANCHI', 'GUWAHATI', 'SHILLONG', 'IMPHAL']
-            }
+            # Define Indian regions based on common city patterns
+            def get_region(location):
+                location_upper = str(location).upper()
+                if any(city in location_upper for city in ['DELHI', 'GURGAON', 'NOIDA', 'LUCKNOW', 'JAIPUR']):
+                    return 'NORTH'
+                elif any(city in location_upper for city in ['MUMBAI', 'PUNE', 'AHMEDABAD', 'SURAT', 'GOA']):
+                    return 'WEST'
+                elif any(city in location_upper for city in ['BANGALORE', 'CHENNAI', 'HYDERABAD', 'COIMBATORE', 'KOCHI']):
+                    return 'SOUTH'
+                elif any(city in location_upper for city in ['KOLKATA', 'PATNA', 'BHUBANESWAR', 'GUWAHATI']):
+                    return 'EAST'
+                else:
+                    return 'OTHER'
             
-            # Map cities to regions
-            def get_region(city):
-                for region, cities in region_mapping.items():
-                    if city in cities:
-                        return region
-                return 'OTHER'
-            
-            regional_data = self.geo_data.copy()
-            regional_data['Region'] = regional_data['City'].apply(get_region)
+            location_data['Region'] = location_data['CustLocation'].apply(get_region)
             
             fig = sp.make_subplots(
                 rows=2, cols=2,
@@ -243,7 +377,7 @@ class DashboardVisualizations:
             )
             
             # 1. Transaction volume by region
-            region_volume = regional_data.groupby('Region')['TransactionID'].count().reset_index()
+            region_volume = location_data.groupby('Region')['TransactionID'].count().reset_index()
             fig.add_trace(
                 go.Bar(x=region_volume['Region'], y=region_volume['TransactionID'],
                       name='Transaction Volume', marker_color=self.colors['primary']),
@@ -251,7 +385,7 @@ class DashboardVisualizations:
             )
             
             # 2. Average amount by region
-            region_avg_amount = regional_data.groupby('Region')['TransactionAmount (INR)'].mean().reset_index()
+            region_avg_amount = location_data.groupby('Region')['TransactionAmount (INR)'].mean().reset_index()
             fig.add_trace(
                 go.Bar(x=region_avg_amount['Region'], y=region_avg_amount['TransactionAmount (INR)'],
                       name='Avg Amount', marker_color=self.colors['secondary']),
@@ -259,16 +393,17 @@ class DashboardVisualizations:
             )
             
             # 3. Customer distribution by region
-            region_customers = regional_data.groupby('Region')['CustomerID'].nunique().reset_index()
+            region_customers = location_data.groupby('Region')['CustomerID'].nunique().reset_index()
             fig.add_trace(
                 go.Pie(labels=region_customers['Region'], values=region_customers['CustomerID'],
-                      name='Customer Distribution', marker_colors=[self.colors['primary'], self.colors['secondary'], 
-                                                                 self.colors['accent'], self.colors['warning']]),
+                      name='Customer Distribution', 
+                      marker_colors=[self.colors['primary'], self.colors['secondary'], 
+                                   self.colors['accent'], self.colors['warning'], '#17becf']),
                 row=2, col=1
             )
             
             # 4. Regional performance (multiple metrics)
-            region_performance = regional_data.groupby('Region').agg({
+            region_performance = location_data.groupby('Region').agg({
                 'TransactionID': 'count',
                 'TransactionAmount (INR)': 'sum',
                 'CustomerID': 'nunique'
@@ -386,16 +521,16 @@ class DashboardVisualizations:
             
             location_stats.columns = ['Location', 'TransactionCount', 'TotalAmount', 'UniqueCustomers']
             
-            # Create heatmap data
-            heatmap_data = location_stats.nlargest(15, 'TransactionCount')
+            # Create bar chart instead of heatmap for better compatibility
+            top_locations = location_stats.nlargest(15, 'TransactionCount')
             
-            fig = px.density_heatmap(
-                location_stats,
+            fig = px.bar(
+                top_locations,
                 x='Location',
                 y='TransactionCount',
-                z='TotalAmount',
-                title='Geographic Heatmap - Transaction Density',
-                color_continuous_scale='Viridis'
+                color='TotalAmount',
+                color_continuous_scale='Viridis',
+                title='Top Locations by Transaction Count'
             )
             
             fig.update_layout(
@@ -408,7 +543,7 @@ class DashboardVisualizations:
             
             return fig
         except Exception as e:
-            return self._create_empty_plot(f"Error in geographic heatmap: {str(e)}")
+            return self._create_empty_plot(f"Error in geographic visualization: {str(e)}")
     
     def create_customer_demographics(self):
         """Create comprehensive customer demographics charts"""

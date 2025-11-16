@@ -93,6 +93,7 @@ class BankCustomerSegmentationDashboard:
             border-radius: 8px;
             padding: 10px 20px;
             font-weight: 600;
+            width: 100%;
         }
         .stDownloadButton>button {
             background: linear-gradient(45deg, #2ca02c, #9467bd);
@@ -101,6 +102,20 @@ class BankCustomerSegmentationDashboard:
             border-radius: 8px;
             padding: 10px 20px;
             font-weight: 600;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            font-size: 24px;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -184,6 +199,12 @@ class BankCustomerSegmentationDashboard:
         st.sidebar.markdown("## DASHBOARD CONTROLS")
         st.sidebar.markdown("---")
         
+        # Initialize session state for form submission
+        if 'form_submitted' not in st.session_state:
+            st.session_state.form_submitted = False
+        if 'filter_params' not in st.session_state:
+            st.session_state.filter_params = {}
+        
         # Date range filter
         st.sidebar.subheader("Date Range")
         min_date = df['TransactionDate'].min().date()
@@ -207,7 +228,8 @@ class BankCustomerSegmentationDashboard:
             "Age Range",
             min_value=min_age,
             max_value=max_age,
-            value=(min_age, max_age)
+            value=(min_age, max_age),
+            key="age_range"
         )
         
         # Gender filter
@@ -215,7 +237,8 @@ class BankCustomerSegmentationDashboard:
         selected_genders = st.sidebar.multiselect(
             "Gender",
             genders,
-            default=['All']
+            default=['All'],
+            key="gender"
         )
         
         st.sidebar.markdown("---")
@@ -226,7 +249,8 @@ class BankCustomerSegmentationDashboard:
         selected_locations = st.sidebar.multiselect(
             "Select Locations", 
             locations, 
-            default=['All']
+            default=['All'],
+            key="locations"
         )
         
         st.sidebar.markdown("---")
@@ -241,7 +265,8 @@ class BankCustomerSegmentationDashboard:
             "Account Balance Range (INR)",
             min_value=min_balance,
             max_value=max_balance,
-            value=(min_balance, max_balance)
+            value=(min_balance, max_balance),
+            key="balance_range"
         )
         
         st.sidebar.markdown("---")
@@ -251,13 +276,41 @@ class BankCustomerSegmentationDashboard:
         time_frame = st.sidebar.selectbox(
             "Time Frame Analysis",
             ["Daily", "Weekly", "Monthly"],
-            index=0
+            index=0,
+            key="time_frame"
         )
         
         # Performance mode
-        performance_mode = st.sidebar.checkbox("Performance Mode (Sample Data)", value=False)
+        performance_mode = st.sidebar.checkbox("Performance Mode (Sample Data)", value=False, key="performance_mode")
         
-        return start_date, end_date, selected_locations, selected_genders, age_range, balance_range, time_frame, performance_mode
+        st.sidebar.markdown("---")
+        
+        # Submit button
+        submit_button = st.sidebar.button("APPLY FILTERS", type="primary", use_container_width=True)
+        
+        if submit_button:
+            st.session_state.form_submitted = True
+            st.session_state.filter_params = {
+                'start_date': start_date,
+                'end_date': end_date,
+                'selected_locations': selected_locations,
+                'selected_genders': selected_genders,
+                'age_range': age_range,
+                'balance_range': balance_range,
+                'time_frame': time_frame,
+                'performance_mode': performance_mode
+            }
+            st.rerun()
+        
+        # If form hasn't been submitted, return default values without processing
+        if not st.session_state.form_submitted:
+            return None, None, None, None, None, None, None, None
+        
+        # Return the stored filter parameters
+        params = st.session_state.filter_params
+        return (params['start_date'], params['end_date'], params['selected_locations'], 
+                params['selected_genders'], params['age_range'], params['balance_range'], 
+                params['time_frame'], params['performance_mode'])
     
     def display_kpi_metrics(self, filtered_df):
         """Display comprehensive KPI metrics"""
@@ -320,17 +373,26 @@ class BankCustomerSegmentationDashboard:
         # Comprehensive Geospatial Dashboard
         st.markdown('<div class="subsection-header">India Transaction Map & Regional Analysis</div>', unsafe_allow_html=True)
         fig1 = self.visualizations.create_geospatial_visualizations()
-        st.plotly_chart(fig1, use_container_width=True, key="geo_1")
+        if fig1:
+            st.plotly_chart(fig1, use_container_width=True, key="geo_1")
+        else:
+            st.info("Geospatial visualization data not available")
         
         # Interactive India Map
         st.markdown('<div class="subsection-header">Interactive India Transaction Map</div>', unsafe_allow_html=True)
         fig2 = self.visualizations.create_interactive_india_map()
-        st.plotly_chart(fig2, use_container_width=True, key="geo_2")
+        if fig2:
+            st.plotly_chart(fig2, use_container_width=True, key="geo_2")
+        else:
+            st.info("Interactive map data not available")
         
         # Regional Analysis
         st.markdown('<div class="subsection-header">Regional Performance Analysis</div>', unsafe_allow_html=True)
         fig3 = self.visualizations.create_regional_analysis()
-        st.plotly_chart(fig3, use_container_width=True, key="geo_3")
+        if fig3:
+            st.plotly_chart(fig3, use_container_width=True, key="geo_3")
+        else:
+            st.info("Regional analysis data not available")
     
     def display_transaction_analysis(self, filtered_df, time_frame):
         """Display comprehensive transaction analysis"""
@@ -460,9 +522,14 @@ class BankCustomerSegmentationDashboard:
         </p>
         """, unsafe_allow_html=True)
         
-        # Load data with progress
-        with st.spinner('Loading and processing data... This may take a moment for advanced analytics.'):
-            df = self.load_data()
+        # Load data with progress - only once
+        if 'data_loaded' not in st.session_state:
+            with st.spinner('Loading and processing data... This may take a moment for advanced analytics.'):
+                df = self.load_data()
+                st.session_state.data_loaded = True
+                st.session_state.df = df
+        else:
+            df = st.session_state.df
         
         if df is None or len(df) == 0:
             st.error("Failed to load data. The dashboard cannot function without data.")
@@ -474,41 +541,50 @@ class BankCustomerSegmentationDashboard:
         self.data_loader._is_loaded = True
         
         # Create enhanced filters
-        start_date, end_date, locations, genders, age_range, balance_range, time_frame, performance_mode = self.create_sidebar_filters(df)
+        filter_results = self.create_sidebar_filters(df)
         
-        # Filter data
-        filtered_df = self.data_loader.get_filtered_data(
-            start_date=pd.to_datetime(start_date),
-            end_date=pd.to_datetime(end_date),
-            locations=locations,
-            genders=genders,
-            age_range=age_range,
-            balance_range=balance_range
-        )
+        # Check if filters have been submitted
+        if None in filter_results:
+            st.info("👆 Configure your filters in the sidebar and click 'APPLY FILTERS' to generate the dashboard")
+            return
         
-        # Apply performance mode sampling
-        if performance_mode and len(filtered_df) > 10000:
-            filtered_df = filtered_df.sample(n=10000, random_state=42)
-            st.info(f"Performance Mode: Using 10,000 sampled records from {len(filtered_df):,} total records")
+        start_date, end_date, locations, genders, age_range, balance_range, time_frame, performance_mode = filter_results
         
-        # Store filtered data for export
-        self.current_filtered_df = filtered_df
-        
-        # Get customer segments and geospatial data
-        customer_segments = self.data_loader.get_customer_segments()
-        geo_data = self.data_loader.get_geospatial_data()
-        
-        # Initialize enhanced visualizations with geospatial data
-        self.visualizations = DashboardVisualizations(filtered_df, customer_segments, geo_data)
-        
-        # Display all dashboard sections
-        self.display_kpi_metrics(filtered_df)
-        self.display_geospatial_analysis(filtered_df)
-        self.display_transaction_analysis(filtered_df, time_frame)
-        self.display_customer_analysis(filtered_df)
-        self.display_financial_analysis(filtered_df)
-        self.display_advanced_segmentation(filtered_df)
-        self.display_data_insights(filtered_df)
+        # Show loading state
+        with st.spinner('Applying filters and generating visualizations...'):
+            # Filter data
+            filtered_df = self.data_loader.get_filtered_data(
+                start_date=pd.to_datetime(start_date),
+                end_date=pd.to_datetime(end_date),
+                locations=locations,
+                genders=genders,
+                age_range=age_range,
+                balance_range=balance_range
+            )
+            
+            # Apply performance mode sampling
+            if performance_mode and len(filtered_df) > 10000:
+                filtered_df = filtered_df.sample(n=10000, random_state=42)
+                st.info(f"Performance Mode: Using 10,000 sampled records from {len(filtered_df):,} total records")
+            
+            # Store filtered data for export
+            self.current_filtered_df = filtered_df
+            
+            # Get customer segments and geospatial data
+            customer_segments = self.data_loader.get_customer_segments()
+            geo_data = self.data_loader.get_geospatial_data()
+            
+            # Initialize enhanced visualizations with geospatial data
+            self.visualizations = DashboardVisualizations(filtered_df, customer_segments, geo_data)
+            
+            # Display all dashboard sections
+            self.display_kpi_metrics(filtered_df)
+            self.display_geospatial_analysis(filtered_df)
+            self.display_transaction_analysis(filtered_df, time_frame)
+            self.display_customer_analysis(filtered_df)
+            self.display_financial_analysis(filtered_df)
+            self.display_advanced_segmentation(filtered_df)
+            self.display_data_insights(filtered_df)
         
         # Enhanced Footer
         st.markdown("---")
